@@ -34,38 +34,59 @@ BRANDS = [
     "lenovo_mea", "oppo", "lenovo_cis", "bouygues-primary", "oppo_mea"
 ]
 
-FEATURES = ['oobe', 'silent', 'gotw', 'publisher promotion', 'reef', 'reengagement promotion']
+FEATURES = ['oobe', 'silent', 'gotw', 'publisher promotion', 'reef', 'reengagement promotion', 'recurring OOBE']
 
-# Custom CSS for a better looking UI
+# Custom CSS for dark theme with readable text
 st.markdown("""
 <style>
-    /* Main content */
+    /* Main app background */
+    .stApp {
+        background-color: #0e1117;
+        color: #fafafa;
+    }
+    
+    /* Main content area */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
+        background-color: #0e1117;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #262730;
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: #fafafa !important;
+    }
+    
+    /* Headers - white and readable */
+    h1, h2, h3, h4, h5, h6 {
+        color: #fafafa !important;
     }
     
     /* Metric boxes */
     .metric-box {
-        background: #ffffff;
+        background: #1e1e1e;
         border-radius: 10px;
         padding: 1.5rem;
         margin-bottom: 1rem;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        border: 1px solid #333;
     }
     
     .metric-value {
         font-size: 1.8rem;
         font-weight: 700;
-        color: #1f1f1f;
+        color: #fafafa;
         margin: 0.5rem 0;
     }
     
     .metric-label {
         font-size: 1rem;
-        color: #666666;
+        color: #b0b0b0;
         margin-bottom: 0.5rem;
     }
     
@@ -75,41 +96,42 @@ st.markdown("""
     }
     
     .metric-delta.positive {
-        color: #2e7d32;
+        color: #4caf50;
     }
     
     .metric-delta.negative {
-        color: #c62828;
+        color: #f44336;
     }
     
-    /* Charts */
-    .stPlotContainer > div {
-        border-radius: 10px;
-        background: #ffffff;
-        padding: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border: 1px solid #e0e0e0;
+    /* Make all text readable */
+    p, span, div, label {
+        color: #fafafa !important;
     }
     
-    /* Sidebar */
-    .css-1d391kg {
-        padding: 1.5rem;
-        background-color: #f8f9fa;
+    /* Streamlit widgets */
+    .stSelectbox label, .stMultiSelect label, .stCheckbox label {
+        color: #fafafa !important;
     }
     
-    /* Headers */
-    h1, h2, h3 {
-        color: #1f1f1f !important;
+    /* Data tables */
+    .dataframe {
+        color: #fafafa !important;
+        background-color: #1e1e1e !important;
     }
     
-    /* Make sure text is visible in dark mode */
-    .stApp {
-        color: #1f1f1f;
+    .dataframe th {
+        background-color: #262730 !important;
+        color: #fafafa !important;
     }
     
-    /* Fix for white text on light background */
-    .stMarkdown, .stText, .stAlert, .stException {
-        color: #1f1f1f !important;
+    .dataframe td {
+        color: #fafafa !important;
+    }
+    
+    /* Info/Warning/Error boxes */
+    .stAlert {
+        background-color: #1e1e1e !important;
+        color: #fafafa !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -162,46 +184,12 @@ def get_connection():
             'keepalives_count': 5
         }
         
-        st.sidebar.info("🔌 Attempting to connect to Redshift...")
-        
         # Attempt to establish connection
         conn = psycopg2.connect(**conn_params)
         conn.autocommit = True
-        
-        # Test the connection with a simple query
-        with conn.cursor() as cur:
-            cur.execute("SELECT current_database(), current_user, version()")
-            db_info = cur.fetchone()
-            
-            debug_info = f"""
-            ✅ Connection successful!
-            - Database: {db_info[0]}
-            - User: {db_info[1]}
-            - Version: {db_info[2]}
-            """
-            st.sidebar.success(debug_info)
-            
         return conn
         
-    except psycopg2.OperationalError as e:
-        error_msg = f"""
-        ❌ Database Connection Failed
-        
-        Could not connect to the Redshift database. Please verify:
-        
-        1. The Redshift cluster is running and accessible
-        2. The security group allows inbound traffic on port {port}
-        3. The credentials in your .env file are correct
-        4. Your IP address is whitelisted in the security group
-        5. The database name and username are correct
-        
-        Error details: {str(e)}
-        """
-        st.sidebar.error(error_msg)
-        return None
-        
-    except Exception as e:
-        st.sidebar.error(f"❌ An unexpected error occurred: {str(e)}")
+    except (psycopg2.OperationalError, Exception):
         return None
 
 def build_sql_query():
@@ -366,7 +354,7 @@ def get_sample_data():
         "samsungsfr", "huawei", "ntt_docomo_samsung", "orange", "rakutensamsung", "kddi", 
         "lenovo_mea", "oppo", "lenovo_cis", "bouygues-primary", "oppo_mea"
     ]
-    FEATURES = ['oobe', 'silent', 'gotw', 'publisher promotion', 'reef', 'reengagement promotion']
+    FEATURES = ['oobe', 'silent', 'gotw', 'publisher promotion', 'reef', 'reengagement promotion', 'recurring OOBE']
     
     data = []
     for brand in BRANDS:
@@ -399,12 +387,9 @@ def get_data():
     """Fetch data from Redshift and return as DataFrame"""
     conn = None
     try:
-        st.sidebar.info("🔌 Connecting to database...")
         conn = get_connection()
         
         if conn is None:
-            st.sidebar.error("❌ Failed to establish database connection")
-            st.sidebar.warning("⚠️ Using sample data instead.")
             return get_sample_data(), False
             
         # Set statement timeout (in milliseconds)
@@ -416,26 +401,18 @@ def get_data():
                 df = pd.read_sql(build_sql_query(), conn)
         
         if df.empty:
-            st.sidebar.warning("⚠️ No data returned from the query. Using sample data.")
             return get_sample_data(), False
             
-        st.sidebar.success(f"✅ Successfully loaded {len(df)} rows of data.")
         return df, True
         
-    except psycopg2.OperationalError as e:
-        st.sidebar.error(f"❌ Database operation failed: {str(e)}")
-        st.sidebar.warning("⚠️ Using sample data instead.")
-        return get_sample_data(), False
-    except Exception as e:
-        st.sidebar.error(f"❌ An error occurred: {str(e)}")
-        st.sidebar.warning("⚠️ Using sample data instead.")
+    except (psycopg2.OperationalError, Exception):
         return get_sample_data(), False
     finally:
         if conn is not None:
             try:
                 conn.close()
-            except Exception as e:
-                st.sidebar.warning(f"⚠️ Error closing connection: {str(e)}")
+            except Exception:
+                pass
 
 def export_to_excel(df, filename="aura_data.xlsx"):
     """Export DataFrame to Excel file"""
@@ -489,16 +466,34 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True):
         # Get the current hour to limit today's data
         from datetime import datetime
         current_hour = datetime.now().hour
+        
+        # Filter out hours with no data FIRST
+        hourly_agg_filtered = hourly_agg[
+            (hourly_agg[f'{metric}_today'] > 0) | 
+            (hourly_agg[f'{metric}_last_week'] > 0)
+        ].copy()
+        
+        # Then filter by current hour for today's data
         if israel_time:
-            current_hour = (current_hour + 2) % 24  # Adjust for Israel time
+            today_data = hourly_agg_filtered[
+                (hourly_agg_filtered['hour_israel'] <= current_hour) &
+                (hourly_agg_filtered[f'{metric}_today'] > 0)
+            ].copy()
+            last_week_data = hourly_agg_filtered[
+                hourly_agg_filtered[f'{metric}_last_week'] > 0
+            ].copy()
+        else:
+            today_data = hourly_agg_filtered[
+                (hourly_agg_filtered['hour_of_day'] <= current_hour) &
+                (hourly_agg_filtered[f'{metric}_today'] > 0)
+            ].copy()
+            last_week_data = hourly_agg_filtered[
+                hourly_agg_filtered[f'{metric}_last_week'] > 0
+            ].copy()
         
-        # Separate today and last week data
-        today_data = hourly_agg[hourly_agg['hour_of_day'] <= current_hour].copy()
-        last_week_data = hourly_agg.copy()
-        
-        # Filter out hours with no data
-        today_data = today_data[today_data[f'{metric}_today'] > 0]
-        last_week_data = last_week_data[last_week_data[f'{metric}_last_week'] > 0]
+        # Sort by the display hour column
+        today_data = today_data.sort_values(hour_column)
+        last_week_data = last_week_data.sort_values(hour_column)
         
         if today_data.empty and last_week_data.empty:
             st.info(f"No data available for {title}")
