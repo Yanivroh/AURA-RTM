@@ -39,9 +39,9 @@ FEATURES = ['oobe', 'silent', 'gotw', 'publisher promotion', 'reef', 'reengageme
 # Custom CSS for dark theme with readable text
 st.markdown("""
 <style>
-    /* Main app background */
+    /* Main app background with gradient */
     .stApp {
-        background-color: #0e1117;
+        background: linear-gradient(135deg, #0e1117 0%, #1a1d29 100%);
         color: #fafafa;
     }
     
@@ -49,58 +49,93 @@ st.markdown("""
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
-        background-color: #0e1117;
     }
     
-    /* Sidebar */
+    /* Sidebar with modern gradient */
     [data-testid="stSidebar"] {
-        background-color: #262730;
+        background: linear-gradient(180deg, #1e2130 0%, #262730 100%);
+        border-right: 1px solid #3d4050;
     }
     
     [data-testid="stSidebar"] * {
         color: #fafafa !important;
     }
     
-    /* Headers - white and readable */
-    h1, h2, h3, h4, h5, h6 {
+    /* Headers - modern and bold */
+    h1 {
+        color: #fafafa !important;
+        font-size: 2.5rem !important;
+        font-weight: 800 !important;
+        background: linear-gradient(90deg, #4CAF50 0%, #2196F3 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem !important;
+    }
+    
+    h2, h3 {
+        color: #fafafa !important;
+        font-weight: 700 !important;
+    }
+    
+    h4, h5, h6 {
+        color: #e0e0e0 !important;
+    }
+    
+    /* Streamlit metric cards - enhanced */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
         color: #fafafa !important;
     }
     
-    /* Metric boxes */
-    .metric-box {
-        background: #1e1e1e;
-        border-radius: 10px;
+    [data-testid="stMetricLabel"] {
+        font-size: 1rem !important;
+        color: #b0b0b0 !important;
+        font-weight: 600 !important;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Metric container with hover effect */
+    div[data-testid="metric-container"] {
+        background: linear-gradient(135deg, #1e2130 0%, #252836 100%);
+        border-radius: 12px;
+        padding: 1.2rem;
+        border: 1px solid #3d4050;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transition: all 0.3s ease;
+    }
+    
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(76, 175, 80, 0.2);
+        border-color: #4CAF50;
+    }
+    
+    /* Insights box */
+    .insight-box {
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        border-radius: 12px;
         padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        border: 1px solid #42A5F5;
+    }
+    
+    .insight-box h3 {
+        color: #fff !important;
         margin-bottom: 1rem;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        border: 1px solid #333;
     }
     
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #fafafa;
+    .insight-item {
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 0.8rem;
         margin: 0.5rem 0;
-    }
-    
-    .metric-label {
-        font-size: 1rem;
-        color: #b0b0b0;
-        margin-bottom: 0.5rem;
-    }
-    
-    .metric-delta {
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    
-    .metric-delta.positive {
-        color: #4caf50;
-    }
-    
-    .metric-delta.negative {
-        color: #f44336;
+        border-left: 3px solid #FFC107;
     }
     
     /* Make all text readable */
@@ -111,27 +146,88 @@ st.markdown("""
     /* Streamlit widgets */
     .stSelectbox label, .stMultiSelect label, .stCheckbox label {
         color: #fafafa !important;
+        font-weight: 600 !important;
     }
     
-    /* Data tables */
+    /* Buttons - modern style */
+    .stButton button {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        color: white !important;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+    
+    /* Data tables - modern dark theme */
     .dataframe {
         color: #fafafa !important;
-        background-color: #1e1e1e !important;
+        background-color: #1e2130 !important;
+        border-radius: 8px;
+        overflow: hidden;
     }
     
     .dataframe th {
-        background-color: #262730 !important;
-        color: #fafafa !important;
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        padding: 12px !important;
     }
     
     .dataframe td {
         color: #fafafa !important;
+        padding: 10px !important;
+        border-bottom: 1px solid #3d4050;
     }
     
-    /* Info/Warning/Error boxes */
+    .dataframe tr:hover {
+        background-color: #252836 !important;
+    }
+    
+    /* Tabs - modern style */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #1e2130;
+        border-radius: 8px;
+        padding: 4px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 6px;
+        color: #b0b0b0;
+        font-weight: 600;
+        padding: 8px 16px;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        color: white !important;
+    }
+    
+    /* Info/Warning/Success boxes */
     .stAlert {
-        background-color: #1e1e1e !important;
+        background-color: #1e2130 !important;
         color: #fafafa !important;
+        border-radius: 8px !important;
+        border-left: 4px solid #2196F3 !important;
+    }
+    
+    /* Loading spinner */
+    .stSpinner > div {
+        border-top-color: #4CAF50 !important;
+    }
+    
+    /* Plotly charts - dark theme */
+    .js-plotly-plot {
+        border-radius: 12px;
+        overflow: hidden;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -192,10 +288,14 @@ def get_connection():
     except (psycopg2.OperationalError, Exception):
         return None
 
-def build_sql_query():
-    """Build SQL query dynamically with all available brands"""
-    brands_str = "', '".join(BRANDS)
+def build_sql_query(selected_source=None, selected_brands=None):
+    """Build SQL query dynamically with selected brands"""
+    brands_to_use = selected_brands if selected_brands else BRANDS
+    brands_str = "', '".join(brands_to_use)
     features_str = "', '".join(FEATURES)
+    
+    # Add source filter if specified
+    source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 WITH 
@@ -210,6 +310,7 @@ today_metrics AS (
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
+      {source_filter}
       AND date_hour >= TRUNC(GETDATE())
       AND date_hour <= GETDATE()
     GROUP BY brand, feature
@@ -225,6 +326,7 @@ last_week_metrics AS (
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
+      {source_filter}
       AND date_hour >= DATEADD(day, -7, TRUNC(GETDATE()))
       AND date_hour <= DATEADD(day, -7, GETDATE())
     GROUP BY brand, feature
@@ -271,9 +373,11 @@ FULL OUTER JOIN last_week_metrics l
 ORDER BY brand, feature
 """
 
-def build_new_devices_query():
+def build_new_devices_query(selected_brands=None, selected_source=None):
     """Build simple query for new_devices"""
-    brands_str = "', '".join(BRANDS)
+    brands_to_use = selected_brands if selected_brands else BRANDS
+    brands_str = "', '".join(brands_to_use)
+    source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 SELECT 
@@ -281,11 +385,14 @@ SELECT
     COALESCE(SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END), 0) AS new_devices_last_week
 FROM apps.supply_aura_rtm
 WHERE brand IN ('{brands_str}')
+  {source_filter}
 """
 
-def build_new_devices_hourly_query():
+def build_new_devices_hourly_query(selected_source=None, selected_brands=None):
     """Build hourly query for new_devices only"""
-    brands_str = "', '".join(BRANDS)
+    brands_to_use = selected_brands if selected_brands else BRANDS
+    brands_str = "', '".join(brands_to_use)
+    source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 SELECT 
@@ -294,6 +401,7 @@ SELECT
     SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END) AS new_devices_last_week
 FROM apps.supply_aura_rtm
 WHERE brand IN ('{brands_str}')
+  {source_filter}
   AND (
     (date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE())
     OR
@@ -303,10 +411,12 @@ GROUP BY EXTRACT(HOUR FROM date_hour)
 ORDER BY hour_of_day
 """
 
-def build_hourly_query():
-    """Build hourly SQL query dynamically with all available brands"""
-    brands_str = "', '".join(BRANDS)
+def build_hourly_query(selected_source=None, selected_brands=None):
+    """Build hourly SQL query dynamically with selected brands"""
+    brands_to_use = selected_brands if selected_brands else BRANDS
+    brands_str = "', '".join(brands_to_use)
     features_str = "', '".join(FEATURES)
+    source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 WITH 
@@ -323,6 +433,7 @@ todays_hourly AS (
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
+      {source_filter}
       AND date_hour >= TRUNC(GETDATE())
       AND date_hour <= GETDATE()
     GROUP BY brand, feature, EXTRACT(HOUR FROM date_hour)
@@ -340,6 +451,7 @@ last_week_hourly AS (
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
+      {source_filter}
       AND date_hour >= DATEADD(day, -7, TRUNC(GETDATE()))
       AND date_hour <= DATEADD(day, -7, GETDATE())
     GROUP BY brand, feature, EXTRACT(HOUR FROM date_hour)
@@ -421,7 +533,7 @@ def get_sample_data():
     return df
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_data():
+def get_data(selected_source=None, selected_brands=None):
     """Fetch data from Redshift and return as DataFrame"""
     conn = None
     try:
@@ -436,22 +548,16 @@ def get_data():
         
         with st.sidebar:
             with st.spinner("🔍 Executing query... This may take up to 2 minutes."):
-                df = pd.read_sql(build_sql_query(), conn)
+                df = pd.read_sql(build_sql_query(selected_source, selected_brands), conn)
                 
                 # Get new_devices separately (faster query)
-                st.write("🔍 Starting new_devices query...")
-                query = build_new_devices_query()
-                st.code(query, language='sql')  # Show the actual query
                 try:
-                    new_devices_df = pd.read_sql(query, conn)
-                    st.info(f"✅ New devices query returned: {new_devices_df.to_dict()}")
+                    new_devices_df = pd.read_sql(build_new_devices_query(selected_brands, selected_source), conn)
                     
                     if not new_devices_df.empty:
                         # Store new_devices separately (not per row!)
                         today_val = new_devices_df['new_devices_today'].iloc[0]
                         last_week_val = new_devices_df['new_devices_last_week'].iloc[0]
-                        
-                        st.success(f"📊 New Devices - Today: {today_val:,}, Last Week: {last_week_val:,}")
                         
                         # Store as metadata in df.attrs (not as columns!)
                         df.attrs['new_devices_today'] = today_val
@@ -681,16 +787,19 @@ def aggregate_brands_data(df, selected_brands):
         'exp_today': 'sum',
         'exp_last_week': 'sum',
         'install_today': 'sum',
-        'install_last_week': 'sum',
-        'new_devices_today': 'sum',
-        'new_devices_last_week': 'sum'
+        'install_last_week': 'sum'
     }
     
     aggregated = aggregated_df.groupby('feature').agg(agg_dict).reset_index()
     aggregated['brand'] = combined_brand_name
     
+    # Preserve new_devices from attrs if exists
+    if hasattr(df, 'attrs'):
+        aggregated.attrs['new_devices_today'] = df.attrs.get('new_devices_today', 0)
+        aggregated.attrs['new_devices_last_week'] = df.attrs.get('new_devices_last_week', 0)
+    
     # Recalculate differences and percentages
-    for metric in ['revenue', 'notif', 'exp', 'install', 'new_devices']:
+    for metric in ['revenue', 'notif', 'exp', 'install']:
         aggregated[f'{metric}_diff'] = aggregated[f'{metric}_today'] - aggregated[f'{metric}_last_week']
         aggregated[f'{metric}_pct_diff'] = (
             (aggregated[f'{metric}_today'] - aggregated[f'{metric}_last_week']) / 
@@ -715,15 +824,48 @@ def aggregate_hourly_data(df, selected_brands):
         'exp_today': 'sum',
         'exp_last_week': 'sum',
         'install_today': 'sum',
-        'install_last_week': 'sum',
-        'new_devices_today': 'sum',
-        'new_devices_last_week': 'sum'
+        'install_last_week': 'sum'
     }
     
     aggregated = df.groupby(['feature', 'hour_of_day']).agg(agg_dict).reset_index()
     aggregated['brand'] = combined_brand_name
     
     return aggregated
+
+def generate_insights(filtered_df, filtered_hourly_df, new_devices_today, new_devices_last_week):
+    """Generate smart insights from the data"""
+    insights = []
+    
+    # Revenue insight
+    revenue_today = filtered_df['revenue_today'].sum()
+    revenue_last_week = filtered_df['revenue_last_week'].sum()
+    revenue_change = ((revenue_today - revenue_last_week) / revenue_last_week * 100) if revenue_last_week > 0 else 0
+    
+    if abs(revenue_change) > 20:
+        emoji = "🔥" if revenue_change > 0 else "⚠️"
+        insights.append(f"{emoji} Revenue {'+' if revenue_change > 0 else ''}{revenue_change:.1f}% vs last week - {'Great performance!' if revenue_change > 0 else 'Needs attention'}")
+    
+    # Peak hour insight
+    if filtered_hourly_df is not None and not filtered_hourly_df.empty:
+        hourly_notif = filtered_hourly_df.groupby('hour_of_day')['notif_today'].sum()
+        if not hourly_notif.empty:
+            peak_hour = hourly_notif.idxmax()
+            peak_value = hourly_notif.max()
+            insights.append(f"📊 Peak hour today: {int(peak_hour)}:00 ({peak_value:,.0f} notifications)")
+    
+    # New devices insight
+    if new_devices_today > 0:
+        nd_change = ((new_devices_today - new_devices_last_week) / new_devices_last_week * 100) if new_devices_last_week > 0 else 0
+        if abs(nd_change) > 10:
+            emoji = "📈" if nd_change > 0 else "📉"
+            insights.append(f"{emoji} New Devices {'+' if nd_change > 0 else ''}{nd_change:.1f}% - {new_devices_today:,.0f} today")
+    
+    # Top performing feature
+    top_feature = filtered_df.groupby('feature')['revenue_today'].sum().idxmax()
+    top_revenue = filtered_df.groupby('feature')['revenue_today'].sum().max()
+    insights.append(f"⭐ Top feature: {top_feature} (${top_revenue:,.2f})")
+    
+    return insights
 
 def render_overview_tab(filtered_df, filtered_hourly_df=None, israel_time=True, new_devices_hourly=None):
     """Render the overview tab with key metrics, data table, and hourly charts"""
@@ -741,6 +883,7 @@ def render_overview_tab(filtered_df, filtered_hourly_df=None, israel_time=True, 
     new_devices_last_week = filtered_df.attrs.get('new_devices_last_week', 0)
     
     # Display metrics in a grid using st.metric
+    st.subheader("📊 Key Metrics")
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
@@ -914,30 +1057,14 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
     
     # Sidebar filters
     with st.sidebar:
-        st.header("🔍 Filters")
+        st.header("🔍 Additional Filters")
         
-        # Brand filter with multiselect
-        st.markdown("### 🏷️ Brands")
-        select_all_brands = st.checkbox("Select All Brands", value=True)
-        
-        if select_all_brands:
-            selected_brands = all_brands
-        else:
-            selected_brands = st.multiselect(
-                'Choose Brands',
-                all_brands,
-                default=[],
-                help="Select one or more brands to filter"
-            )
-        
-        st.caption(f"Selected: {len(selected_brands)} brands")
-        
-        # Aggregate brands option
-        if len(selected_brands) > 1:
+        # Aggregate brands option (if multiple brands were queried)
+        if len(all_brands) > 1:
             aggregate_brands = st.checkbox(
-                "🔗 Combine selected brands into one view",
+                "🔗 Combine all brands into one view",
                 value=False,
-                help="Aggregate all selected brands data together"
+                help="Aggregate all brands data together"
             )
         else:
             aggregate_brands = False
@@ -984,12 +1111,6 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
     filtered_df = df.copy()
     filtered_hourly_df = hourly_df.copy() if not hourly_df.empty else pd.DataFrame()
     
-    # Filter by selected brands
-    if selected_brands:
-        filtered_df = filtered_df[filtered_df['brand'].isin(selected_brands)]
-        if not filtered_hourly_df.empty:
-            filtered_hourly_df = filtered_hourly_df[filtered_hourly_df['brand'].isin(selected_brands)]
-    
     # Filter by selected features
     if selected_features:
         filtered_df = filtered_df[filtered_df['feature'].isin(selected_features)]
@@ -1002,30 +1123,65 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
         return
     
     # Apply aggregation if requested
-    if aggregate_brands and len(selected_brands) > 1:
-        st.info(f"📊 Showing combined view of {len(selected_brands)} brands: {', '.join(selected_brands[:3])}{'...' if len(selected_brands) > 3 else ''}")
-        filtered_df = aggregate_brands_data(filtered_df, selected_brands)
+    if aggregate_brands and len(all_brands) > 1:
+        st.info(f"📊 Showing combined view of {len(all_brands)} brands: {', '.join(all_brands[:3])}{'...' if len(all_brands) > 3 else ''}")
+        filtered_df = aggregate_brands_data(filtered_df, all_brands)
         if not filtered_hourly_df.empty:
-            filtered_hourly_df = aggregate_hourly_data(filtered_hourly_df, selected_brands)
+            filtered_hourly_df = aggregate_hourly_data(filtered_hourly_df, all_brands)
     
     # Create tabs for different views
-    tab1, tab2, tab3 = st.tabs(["📊 Overview", "📈 Hourly Trends", "🔍 Comparison"])
+    tab1, tab2 = st.tabs(["📊 Overview", "📈 Hourly Trends"])
     
     with tab1:
         render_overview_tab(filtered_df, filtered_hourly_df, use_israel_time, new_devices_hourly)
     
     with tab2:
         render_hourly_tab(filtered_hourly_df, use_israel_time)
-    
-    with tab3:
-        render_comparison_tab(filtered_df)
 
 def main():
     """Main function to run the Streamlit app"""
     try:
-        # Load the data
-        with st.spinner('Loading data...'):
-            df, is_real_data = get_data()
+        # Get filters BEFORE loading data for efficiency
+        with st.sidebar:
+            st.markdown("### 📡 Source Filter")
+            source_options = ["All", "pre-install", "FOTA"]
+            selected_source_display = st.selectbox(
+                'Data Source',
+                source_options,
+                index=0,
+                help="Filter by data source",
+                key="source_filter_main"
+            )
+            selected_source = None if selected_source_display == "All" else selected_source_display
+            
+            st.markdown("### 🏷️ Brands Filter")
+            st.caption("Select brands before loading data for faster queries")
+            select_all_brands = st.checkbox("Select All Brands", value=True, key="select_all_main")
+            
+            if select_all_brands:
+                selected_brands = BRANDS
+            else:
+                selected_brands = st.multiselect(
+                    'Choose Brands',
+                    BRANDS,
+                    default=[],
+                    help="Select specific brands to query",
+                    key="brands_filter_main"
+                )
+            
+            if not selected_brands:
+                st.warning("⚠️ Please select at least one brand")
+                return
+            
+            st.caption(f"Will query {len(selected_brands)} brand(s)")
+            
+            # Store in session state
+            st.session_state['selected_source'] = selected_source
+            st.session_state['selected_brands'] = selected_brands
+        
+        # Load the data with selected filters
+        with st.spinner(f'Loading data for {len(selected_brands)} brand(s)...'):
+            df, is_real_data = get_data(selected_source, selected_brands)
             
             # Get hourly data for charts
             hourly_df = pd.DataFrame()
@@ -1033,14 +1189,13 @@ def main():
             try:
                 conn = get_connection()
                 if conn:
-                    hourly_df = pd.read_sql(build_hourly_query(), conn)
+                    hourly_df = pd.read_sql(build_hourly_query(selected_source, selected_brands), conn)
                     
                     # Get new_devices hourly separately (not grouped by feature)
                     try:
-                        new_devices_hourly = pd.read_sql(build_new_devices_hourly_query(), conn)
-                        st.sidebar.success(f"✅ new_devices hourly: {len(new_devices_hourly)} hours, Total today: {new_devices_hourly['new_devices_today'].sum():,.0f}")
+                        new_devices_hourly = pd.read_sql(build_new_devices_hourly_query(selected_source, selected_brands), conn)
                     except Exception as e:
-                        st.sidebar.error(f"❌ Failed to load new_devices hourly: {str(e)}")
+                        new_devices_hourly = None
                     
                     conn.close()
             except Exception as e:
