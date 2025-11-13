@@ -271,6 +271,38 @@ FULL OUTER JOIN last_week_metrics l
 ORDER BY brand, feature
 """
 
+def build_new_devices_query():
+    """Build simple query for new_devices"""
+    brands_str = "', '".join(BRANDS)
+    
+    return f"""
+SELECT 
+    COALESCE(SUM(CASE WHEN date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE() THEN new_devices ELSE 0 END), 0) AS new_devices_today,
+    COALESCE(SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END), 0) AS new_devices_last_week
+FROM apps.supply_aura_rtm
+WHERE brand IN ('{brands_str}')
+"""
+
+def build_new_devices_hourly_query():
+    """Build hourly query for new_devices only"""
+    brands_str = "', '".join(BRANDS)
+    
+    return f"""
+SELECT 
+    EXTRACT(HOUR FROM date_hour) AS hour_of_day,
+    SUM(CASE WHEN date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE() THEN new_devices ELSE 0 END) AS new_devices_today,
+    SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END) AS new_devices_last_week
+FROM apps.supply_aura_rtm
+WHERE brand IN ('{brands_str}')
+  AND (
+    (date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE())
+    OR
+    (date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()))
+  )
+GROUP BY EXTRACT(HOUR FROM date_hour)
+ORDER BY hour_of_day
+"""
+
 def build_hourly_query():
     """Build hourly SQL query dynamically with all available brands"""
     brands_str = "', '".join(BRANDS)
@@ -286,7 +318,8 @@ todays_hourly AS (
         COALESCE(SUM(revenue), 0) AS revenue,
         COALESCE(SUM(notification_shown), 0) AS notifications,
         COALESCE(SUM(experience_shown), 0) AS experiences,
-        COALESCE(SUM(install_success), 0) AS installs
+        COALESCE(SUM(install_success), 0) AS installs,
+        COALESCE(SUM(new_devices), 0) AS new_devices
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
@@ -302,7 +335,8 @@ last_week_hourly AS (
         COALESCE(SUM(revenue), 0) AS revenue,
         COALESCE(SUM(notification_shown), 0) AS notifications,
         COALESCE(SUM(experience_shown), 0) AS experiences,
-        COALESCE(SUM(install_success), 0) AS installs
+        COALESCE(SUM(install_success), 0) AS installs,
+        COALESCE(SUM(new_devices), 0) AS new_devices
     FROM apps.supply_aura_rtm
     WHERE brand IN ('{brands_str}')
       AND feature IN ('{features_str}')
@@ -321,7 +355,9 @@ SELECT
     COALESCE(t.experiences, 0) AS exp_today,
     COALESCE(l.experiences, 0) AS exp_last_week,
     COALESCE(t.installs, 0) AS install_today,
-    COALESCE(l.installs, 0) AS install_last_week
+    COALESCE(l.installs, 0) AS install_last_week,
+    COALESCE(t.new_devices, 0) AS new_devices_today,
+    COALESCE(l.new_devices, 0) AS new_devices_last_week
 FROM todays_hourly t
 FULL OUTER JOIN last_week_hourly l 
     ON t.brand = l.brand 
@@ -371,12 +407,14 @@ def get_sample_data():
                 'exp_last_week': base_value,
                 'install_today': base_value * random.randint(80, 120) // 100,
                 'install_last_week': base_value,
+                'new_devices_today': base_value * random.randint(70, 130) // 100,
+                'new_devices_last_week': base_value,
             })
     
     df = pd.DataFrame(data)
     
     # Calculate differences and percentages
-    for metric in ['revenue', 'notif', 'exp', 'install']:
+    for metric in ['revenue', 'notif', 'exp', 'install', 'new_devices']:
         df[f'{metric}_diff'] = df[f'{metric}_today'] - df[f'{metric}_last_week']
         df[f'{metric}_pct_diff'] = (df[f'{metric}_today'] / df[f'{metric}_last_week'] - 1) * 100
     
@@ -399,6 +437,40 @@ def get_data():
         with st.sidebar:
             with st.spinner("🔍 Executing query... This may take up to 2 minutes."):
                 df = pd.read_sql(build_sql_query(), conn)
+                
+                # Get new_devices separately (faster query)
+                st.write("🔍 Starting new_devices query...")
+                query = build_new_devices_query()
+                st.code(query, language='sql')  # Show the actual query
+                try:
+                    new_devices_df = pd.read_sql(query, conn)
+                    st.info(f"✅ New devices query returned: {new_devices_df.to_dict()}")
+                    
+                    if not new_devices_df.empty:
+                        # Store new_devices separately (not per row!)
+                        today_val = new_devices_df['new_devices_today'].iloc[0]
+                        last_week_val = new_devices_df['new_devices_last_week'].iloc[0]
+                        
+                        st.success(f"📊 New Devices - Today: {today_val:,}, Last Week: {last_week_val:,}")
+                        
+                        # Store as metadata in df.attrs (not as columns!)
+                        df.attrs['new_devices_today'] = today_val
+                        df.attrs['new_devices_last_week'] = last_week_val
+                        df.attrs['new_devices_diff'] = today_val - last_week_val
+                        df.attrs['new_devices_pct_diff'] = ((today_val - last_week_val) / last_week_val * 100) if last_week_val > 0 else 0
+                    else:
+                        st.warning("⚠️ New devices query returned empty DataFrame")
+                        df.attrs['new_devices_today'] = 0
+                        df.attrs['new_devices_last_week'] = 0
+                        df.attrs['new_devices_diff'] = 0
+                        df.attrs['new_devices_pct_diff'] = 0
+                except Exception as e:
+                    # If new_devices query fails, add zeros
+                    st.error(f"❌ New devices query failed: {str(e)}")
+                    df.attrs['new_devices_today'] = 0
+                    df.attrs['new_devices_last_week'] = 0
+                    df.attrs['new_devices_diff'] = 0
+                    df.attrs['new_devices_pct_diff'] = 0
         
         if df.empty:
             return get_sample_data(), False
@@ -444,14 +516,22 @@ def render_metric_box(title, value, prev_value, is_currency=False):
     </div>
     """, unsafe_allow_html=True)
 
-def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True):
+def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True, chart_key=None, new_devices_hourly=None):
     """Helper function to plot hourly comparison charts with improved interactivity"""
     try:
-        # Aggregate data by hour
-        hourly_agg = df.groupby('hour_of_day').agg({
-            f'{metric}_today': 'sum',
-            f'{metric}_last_week': 'sum'
-        }).reset_index()
+        # Special handling for new_devices (passed separately)
+        if metric == 'new_devices':
+            if new_devices_hourly is not None and not new_devices_hourly.empty:
+                hourly_agg = new_devices_hourly.copy()
+            else:
+                st.info(f"No data available for {title}")
+                return
+        else:
+            # Aggregate data by hour
+            hourly_agg = df.groupby('hour_of_day').agg({
+                f'{metric}_today': 'sum',
+                f'{metric}_last_week': 'sum'
+            }).reset_index()
         
         # Convert to Israel time if requested (UTC+2, or UTC+3 during DST)
         if israel_time:
@@ -576,7 +656,9 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True):
             margin=dict(l=60, r=40, t=80, b=60)
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        # Use unique key if provided, otherwise generate from metric and title
+        unique_key = chart_key if chart_key else f"chart_{metric}_{title.replace(' ', '_')}"
+        st.plotly_chart(fig, use_container_width=True, key=unique_key)
         
     except Exception as e:
         st.error(f"Error generating {title} chart: {str(e)}")
@@ -599,14 +681,16 @@ def aggregate_brands_data(df, selected_brands):
         'exp_today': 'sum',
         'exp_last_week': 'sum',
         'install_today': 'sum',
-        'install_last_week': 'sum'
+        'install_last_week': 'sum',
+        'new_devices_today': 'sum',
+        'new_devices_last_week': 'sum'
     }
     
     aggregated = aggregated_df.groupby('feature').agg(agg_dict).reset_index()
     aggregated['brand'] = combined_brand_name
     
     # Recalculate differences and percentages
-    for metric in ['revenue', 'notif', 'exp', 'install']:
+    for metric in ['revenue', 'notif', 'exp', 'install', 'new_devices']:
         aggregated[f'{metric}_diff'] = aggregated[f'{metric}_today'] - aggregated[f'{metric}_last_week']
         aggregated[f'{metric}_pct_diff'] = (
             (aggregated[f'{metric}_today'] - aggregated[f'{metric}_last_week']) / 
@@ -631,7 +715,9 @@ def aggregate_hourly_data(df, selected_brands):
         'exp_today': 'sum',
         'exp_last_week': 'sum',
         'install_today': 'sum',
-        'install_last_week': 'sum'
+        'install_last_week': 'sum',
+        'new_devices_today': 'sum',
+        'new_devices_last_week': 'sum'
     }
     
     aggregated = df.groupby(['feature', 'hour_of_day']).agg(agg_dict).reset_index()
@@ -639,8 +725,8 @@ def aggregate_hourly_data(df, selected_brands):
     
     return aggregated
 
-def render_overview_tab(filtered_df):
-    """Render the overview tab with key metrics and data table"""
+def render_overview_tab(filtered_df, filtered_hourly_df=None, israel_time=True, new_devices_hourly=None):
+    """Render the overview tab with key metrics, data table, and hourly charts"""
     # Calculate totals
     revenue_today = filtered_df['revenue_today'].sum()
     revenue_last_week = filtered_df['revenue_last_week'].sum()
@@ -650,14 +736,17 @@ def render_overview_tab(filtered_df):
     exp_last_week = filtered_df['exp_last_week'].sum()
     install_today = filtered_df['install_today'].sum()
     install_last_week = filtered_df['install_last_week'].sum()
+    # Get new_devices from df.attrs (stored separately, not per row)
+    new_devices_today = filtered_df.attrs.get('new_devices_today', 0)
+    new_devices_last_week = filtered_df.attrs.get('new_devices_last_week', 0)
     
     # Display metrics in a grid using st.metric
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         delta_pct = ((revenue_today - revenue_last_week) / revenue_last_week * 100) if revenue_last_week > 0 else 0
         st.metric(
-            label="💰 Revenue (Today)",
+            label="💰 Revenue",
             value=f"${revenue_today:,.2f}",
             delta=f"{delta_pct:+.1f}%"
         )
@@ -665,7 +754,7 @@ def render_overview_tab(filtered_df):
     with col2:
         delta_pct = ((notif_today - notif_last_week) / notif_last_week * 100) if notif_last_week > 0 else 0
         st.metric(
-            label="🔔 Notifications (Today)",
+            label="🔔 Notifications",
             value=f"{notif_today:,.0f}",
             delta=f"{delta_pct:+.1f}%"
         )
@@ -673,7 +762,7 @@ def render_overview_tab(filtered_df):
     with col3:
         delta_pct = ((exp_today - exp_last_week) / exp_last_week * 100) if exp_last_week > 0 else 0
         st.metric(
-            label="👁️ Experiences (Today)",
+            label="👁️ Experiences",
             value=f"{exp_today:,.0f}",
             delta=f"{delta_pct:+.1f}%"
         )
@@ -681,8 +770,16 @@ def render_overview_tab(filtered_df):
     with col4:
         delta_pct = ((install_today - install_last_week) / install_last_week * 100) if install_last_week > 0 else 0
         st.metric(
-            label="📥 Installs (Today)",
+            label="📥 Installs",
             value=f"{install_today:,.0f}",
+            delta=f"{delta_pct:+.1f}%"
+        )
+    
+    with col5:
+        delta_pct = ((new_devices_today - new_devices_last_week) / new_devices_last_week * 100) if new_devices_last_week > 0 else 0
+        st.metric(
+            label="📱 New Devices",
+            value=f"{new_devices_today:,.0f}",
             delta=f"{delta_pct:+.1f}%"
         )
     
@@ -712,6 +809,17 @@ def render_overview_tab(filtered_df):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=False
     )
+    
+    # Add hourly performance charts
+    if filtered_hourly_df is not None and not filtered_hourly_df.empty:
+        st.markdown("---")
+        st.subheader("📈 Hourly Performance")
+        st.caption("Key metrics by hour - Today vs Last Week")
+        
+        # Display charts vertically for better visibility
+        plot_hourly_comparison(filtered_hourly_df, 'revenue', '💰 Revenue by Hour', 'Revenue ($)', israel_time, 'overview_revenue', new_devices_hourly)
+        plot_hourly_comparison(filtered_hourly_df, 'notif', '🔔 Notifications by Hour', 'Notifications', israel_time, 'overview_notif', new_devices_hourly)
+        plot_hourly_comparison(filtered_hourly_df, 'new_devices', '📱 New Devices by Hour', 'New Devices', israel_time, 'overview_new_devices', new_devices_hourly)
 
 def render_hourly_tab(filtered_hourly_df, israel_time=True):
     """Render the hourly trends tab with interactive charts"""
@@ -725,12 +833,12 @@ def render_hourly_tab(filtered_hourly_df, israel_time=True):
     col1, col2 = st.columns(2)
     
     with col1:
-        plot_hourly_comparison(filtered_hourly_df, 'revenue', '💰 Revenue by Hour', 'Revenue ($)', israel_time)
-        plot_hourly_comparison(filtered_hourly_df, 'exp', '👁️ Experiences by Hour', 'Experiences', israel_time)
+        plot_hourly_comparison(filtered_hourly_df, 'revenue', '💰 Revenue by Hour', 'Revenue ($)', israel_time, 'hourly_revenue')
+        plot_hourly_comparison(filtered_hourly_df, 'exp', '👁️ Experiences by Hour', 'Experiences', israel_time, 'hourly_exp')
     
     with col2:
-        plot_hourly_comparison(filtered_hourly_df, 'notif', '🔔 Notifications by Hour', 'Notifications', israel_time)
-        plot_hourly_comparison(filtered_hourly_df, 'install', '📥 Installs by Hour', 'Installs', israel_time)
+        plot_hourly_comparison(filtered_hourly_df, 'notif', '🔔 Notifications by Hour', 'Notifications', israel_time, 'hourly_notif')
+        plot_hourly_comparison(filtered_hourly_df, 'install', '📥 Installs by Hour', 'Installs', israel_time, 'hourly_install')
 
 def render_comparison_tab(filtered_df):
     """Render the comparison tab with brand/feature breakdowns"""
@@ -782,7 +890,7 @@ def render_comparison_tab(filtered_df):
     fig.update_layout(height=400, plot_bgcolor='white', paper_bgcolor='white')
     st.plotly_chart(fig, use_container_width=True)
 
-def render_dashboard(df, hourly_df, is_real_data):
+def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
     """Render the enhanced dashboard with filters and charts"""
     st.title("📊 Aura Dashboard")
     
@@ -904,7 +1012,7 @@ def render_dashboard(df, hourly_df, is_real_data):
     tab1, tab2, tab3 = st.tabs(["📊 Overview", "📈 Hourly Trends", "🔍 Comparison"])
     
     with tab1:
-        render_overview_tab(filtered_df)
+        render_overview_tab(filtered_df, filtered_hourly_df, use_israel_time, new_devices_hourly)
     
     with tab2:
         render_hourly_tab(filtered_hourly_df, use_israel_time)
@@ -921,17 +1029,26 @@ def main():
             
             # Get hourly data for charts
             hourly_df = pd.DataFrame()
+            new_devices_hourly = None
             try:
                 conn = get_connection()
                 if conn:
                     hourly_df = pd.read_sql(build_hourly_query(), conn)
+                    
+                    # Get new_devices hourly separately (not grouped by feature)
+                    try:
+                        new_devices_hourly = pd.read_sql(build_new_devices_hourly_query(), conn)
+                        st.sidebar.success(f"✅ new_devices hourly: {len(new_devices_hourly)} hours, Total today: {new_devices_hourly['new_devices_today'].sum():,.0f}")
+                    except Exception as e:
+                        st.sidebar.error(f"❌ Failed to load new_devices hourly: {str(e)}")
+                    
                     conn.close()
             except Exception as e:
                 st.sidebar.warning(f"⚠️ Could not load hourly data: {str(e)}")
         
         # Render the dashboard
         if not df.empty:
-            render_dashboard(df, hourly_df, is_real_data)
+            render_dashboard(df, hourly_df, is_real_data, new_devices_hourly)
         else:
             st.error("No data available. Please check your database connection.")
             
