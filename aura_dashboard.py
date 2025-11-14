@@ -882,8 +882,18 @@ def render_overview_tab(filtered_df, filtered_hourly_df=None, israel_time=True, 
     new_devices_today = filtered_df.attrs.get('new_devices_today', 0)
     new_devices_last_week = filtered_df.attrs.get('new_devices_last_week', 0)
     
+    # Calculate eCPI (effective Cost Per Install) = Revenue / Installs
+    ecpi_today = (revenue_today / install_today) if install_today > 0 else 0
+    ecpi_last_week = (revenue_last_week / install_last_week) if install_last_week > 0 else 0
+    
+    # Calculate RPU (Revenue Per User) = Revenue / Experiences
+    rpu_today = (revenue_today / exp_today) if exp_today > 0 else 0
+    rpu_last_week = (revenue_last_week / exp_last_week) if exp_last_week > 0 else 0
+    
     # Display metrics in a grid using st.metric
     st.subheader("📊 Key Metrics")
+    
+    # First row - main metrics
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
@@ -925,6 +935,37 @@ def render_overview_tab(filtered_df, filtered_hourly_df=None, israel_time=True, 
             value=f"{new_devices_today:,.0f}",
             delta=f"{delta_pct:+.1f}%"
         )
+    
+    # Second row - calculated metrics
+    st.markdown("---")
+    col6, col7, col8, col9, col10 = st.columns(5)
+    
+    with col6:
+        delta_pct = ((ecpi_today - ecpi_last_week) / ecpi_last_week * 100) if ecpi_last_week > 0 else 0
+        st.metric(
+            label="💵 eCPI",
+            value=f"${ecpi_today:.3f}",
+            delta=f"{delta_pct:+.1f}%",
+            help="Effective Cost Per Install = Revenue / Installs"
+        )
+    
+    with col7:
+        delta_pct = ((rpu_today - rpu_last_week) / rpu_last_week * 100) if rpu_last_week > 0 else 0
+        st.metric(
+            label="💎 RPU",
+            value=f"${rpu_today:.4f}",
+            delta=f"{delta_pct:+.1f}%",
+            help="Revenue Per User = Revenue / Experiences"
+        )
+    
+    with col8:
+        st.metric(label="", value="")
+    
+    with col9:
+        st.metric(label="", value="")
+    
+    with col10:
+        st.metric(label="", value="")
     
     # Show data table
     st.subheader("📋 Detailed Data")
