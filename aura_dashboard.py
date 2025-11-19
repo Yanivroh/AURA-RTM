@@ -233,51 +233,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def get_connection():
-    """Establish a connection to the Redshift database with detailed error handling"""
+    """Establish connection to Redshift database"""
     try:
-        # Load connection parameters from environment variables (SECURE)
-        host = os.getenv('REDSHIFT_HOST')
-        dbname = os.getenv('REDSHIFT_DB')
-        user = os.getenv('REDSHIFT_USER')
-        password = os.getenv('REDSHIFT_PASS')
-        port = os.getenv('REDSHIFT_PORT', 5439)
-        
-        # Debug log the connection details (without password)
-        debug_info = f"""
-        🛠️ Connection Details:
-        - Host: {host}
-        - Port: {port}
-        - Database: {dbname}
-        - User: {user}
-        - Password: {'*' * 8 if password else 'Not set'}
-        """
-        st.sidebar.code(debug_info, language='bash')
-        
-        # Validate required environment variables
-        if not all([host, dbname, user, password]):
-            missing = [k for k, v in {
-                'REDSHIFT_HOST': host,
-                'REDSHIFT_DB': dbname,
-                'REDSHIFT_USER': user,
-                'REDSHIFT_PASS': password
-            }.items() if not v]
-            
-            st.error(f"❌ Missing required database parameters: {', '.join(missing)}.\nPlease check your .env file.")
-            return None
-        
-        # Connection parameters
+        # Get credentials from environment variables
         conn_params = {
-            'host': host,
-            'database': dbname,
-            'user': user,
-            'password': password,
-            'port': int(port),
-            'connect_timeout': 10,
-            'sslmode': 'require',
-            'keepalives': 1,
-            'keepalives_idle': 30,
-            'keepalives_interval': 10,
-            'keepalives_count': 5
+            'dbname': os.getenv('REDSHIFT_DB'),
+            'user': os.getenv('REDSHIFT_USER'),
+            'password': os.getenv('REDSHIFT_PASS'),
+            'host': os.getenv('REDSHIFT_HOST'),
+            'port': int(os.getenv('REDSHIFT_PORT', 5439))
         }
         
         # Attempt to establish connection
@@ -288,11 +252,12 @@ def get_connection():
     except (psycopg2.OperationalError, Exception):
         return None
 
-def build_sql_query(selected_source=None, selected_brands=None):
-    """Build SQL query dynamically with selected brands"""
+def build_sql_query(selected_source=None, selected_brands=None, selected_features=None):
+    """Build SQL query dynamically with selected brands and features"""
     brands_to_use = selected_brands if selected_brands else BRANDS
     brands_str = "', '".join(brands_to_use)
-    features_str = "', '".join(FEATURES)
+    features_to_use = selected_features if selected_features else FEATURES
+    features_str = "', '".join(features_to_use)
     
     # Add source filter if specified
     source_filter = f"AND source = '{selected_source}'" if selected_source else ""
@@ -328,7 +293,7 @@ last_week_metrics AS (
       AND feature IN ('{features_str}')
       {source_filter}
       AND date_hour >= DATEADD(day, -7, TRUNC(GETDATE()))
-      AND date_hour <= DATEADD(day, -7, GETDATE())
+      AND date_hour <= DATEADD(hour, -2, DATEADD(day, -7, GETDATE()))
     GROUP BY brand, feature
 )
 SELECT
@@ -373,49 +338,56 @@ FULL OUTER JOIN last_week_metrics l
 ORDER BY brand, feature
 """
 
-def build_new_devices_query(selected_brands=None, selected_source=None):
+def build_new_devices_query(selected_brands=None, selected_source=None, selected_features=None):
     """Build simple query for new_devices"""
     brands_to_use = selected_brands if selected_brands else BRANDS
     brands_str = "', '".join(brands_to_use)
+    features_to_use = selected_features if selected_features else FEATURES
+    features_str = "', '".join(features_to_use)
     source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 SELECT 
     COALESCE(SUM(CASE WHEN date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE() THEN new_devices ELSE 0 END), 0) AS new_devices_today,
-    COALESCE(SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END), 0) AS new_devices_last_week
+    COALESCE(SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(hour, -2, DATEADD(day, -7, GETDATE())) THEN new_devices ELSE 0 END), 0) AS new_devices_last_week
 FROM apps.supply_aura_rtm
 WHERE brand IN ('{brands_str}')
+  AND feature IN ('{features_str}')
   {source_filter}
 """
 
-def build_new_devices_hourly_query(selected_source=None, selected_brands=None):
+def build_new_devices_hourly_query(selected_source=None, selected_brands=None, selected_features=None):
     """Build hourly query for new_devices only"""
     brands_to_use = selected_brands if selected_brands else BRANDS
     brands_str = "', '".join(brands_to_use)
+    features_to_use = selected_features if selected_features else FEATURES
+    features_str = "', '".join(features_to_use)
     source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
 SELECT 
     EXTRACT(HOUR FROM date_hour) AS hour_of_day,
     SUM(CASE WHEN date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE() THEN new_devices ELSE 0 END) AS new_devices_today,
-    SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()) THEN new_devices ELSE 0 END) AS new_devices_last_week
+    SUM(CASE WHEN date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(hour, -2, DATEADD(day, -7, GETDATE())) THEN new_devices ELSE 0 END) AS new_devices_last_week
 FROM apps.supply_aura_rtm
 WHERE brand IN ('{brands_str}')
+  AND feature IN ('{features_str}')
   {source_filter}
   AND (
     (date_hour >= TRUNC(GETDATE()) AND date_hour <= GETDATE())
     OR
-    (date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(day, -7, GETDATE()))
+    (date_hour >= DATEADD(day, -7, TRUNC(GETDATE())) AND date_hour <= DATEADD(hour, -2, DATEADD(day, -7, GETDATE())))
   )
 GROUP BY EXTRACT(HOUR FROM date_hour)
 ORDER BY hour_of_day
 """
 
-def build_hourly_query(selected_source=None, selected_brands=None):
-    """Build hourly SQL query dynamically with selected brands"""
+def build_hourly_query(selected_source=None, selected_brands=None, selected_features=None):
+    """Build hourly SQL query dynamically with selected brands and features"""
     brands_to_use = selected_brands if selected_brands else BRANDS
     brands_str = "', '".join(brands_to_use)
-    features_str = "', '".join(FEATURES)
+    features_to_use = selected_features if selected_features else FEATURES
+    features_str = "', '".join(features_to_use)
     source_filter = f"AND source = '{selected_source}'" if selected_source else ""
     
     return f"""
@@ -453,7 +425,7 @@ last_week_hourly AS (
       AND feature IN ('{features_str}')
       {source_filter}
       AND date_hour >= DATEADD(day, -7, TRUNC(GETDATE()))
-      AND date_hour <= DATEADD(day, -7, GETDATE())
+      AND date_hour <= DATEADD(hour, -2, DATEADD(day, -7, GETDATE()))
     GROUP BY brand, feature, EXTRACT(HOUR FROM date_hour)
 )
 SELECT 
@@ -533,26 +505,27 @@ def get_sample_data():
     return df
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_data(selected_source=None, selected_brands=None):
-    """Fetch data from Redshift and return as DataFrame"""
-    conn = None
+def get_data(selected_source=None, selected_brands=None, selected_features=None):
+    """Fetch data from Redshift with selected filters"""
+    conn = get_connection()
+    
+    if conn is None:
+        st.error("❌ Could not connect to database. Please check your credentials.")
+        return pd.DataFrame(), False
+    
     try:
-        conn = get_connection()
-        
-        if conn is None:
-            return get_sample_data(), False
-            
-        # Set statement timeout (in milliseconds)
+        # Build and execute main query
+        query = build_sql_query(selected_source, selected_brands, selected_features)
         with conn.cursor() as cur:
             cur.execute("SET statement_timeout = 120000")  # 120 seconds (2 minutes)
         
         with st.sidebar:
             with st.spinner("🔍 Executing query... This may take up to 2 minutes."):
-                df = pd.read_sql(build_sql_query(selected_source, selected_brands), conn)
+                df = pd.read_sql(query, conn)
                 
                 # Get new_devices separately (faster query)
                 try:
-                    new_devices_df = pd.read_sql(build_new_devices_query(selected_brands, selected_source), conn)
+                    new_devices_df = pd.read_sql(build_new_devices_query(selected_brands, selected_source, selected_features), conn)
                     
                     if not new_devices_df.empty:
                         # Store new_devices separately (not per row!)
@@ -639,19 +612,24 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True, ch
                 f'{metric}_last_week': 'sum'
             }).reset_index()
         
-        # Convert to Israel time if requested (UTC+2, or UTC+3 during DST)
+        # The data is already in Israel time from the DB
+        # No conversion needed
+        hour_column = 'hour_of_day'
         if israel_time:
-            # Add 2 hours for Israel Standard Time (you can adjust to 3 for DST)
-            hourly_agg['hour_israel'] = (hourly_agg['hour_of_day'] + 2) % 24
-            hour_column = 'hour_israel'
             x_axis_title = 'Hour of Day (Israel Time)'
         else:
-            hour_column = 'hour_of_day'
             x_axis_title = 'Hour of Day (UTC)'
         
         # Get the current hour to limit today's data
         from datetime import datetime
-        current_hour = datetime.now().hour
+        import pytz
+        
+        # Get current hour in the appropriate timezone
+        if israel_time:
+            israel_tz = pytz.timezone('Asia/Jerusalem')
+            current_hour = datetime.now(israel_tz).hour
+        else:
+            current_hour = datetime.utcnow().hour
         
         # Filter out hours with no data FIRST
         hourly_agg_filtered = hourly_agg[
@@ -660,22 +638,13 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True, ch
         ].copy()
         
         # Then filter by current hour for today's data
-        if israel_time:
-            today_data = hourly_agg_filtered[
-                (hourly_agg_filtered['hour_israel'] <= current_hour) &
-                (hourly_agg_filtered[f'{metric}_today'] > 0)
-            ].copy()
-            last_week_data = hourly_agg_filtered[
-                hourly_agg_filtered[f'{metric}_last_week'] > 0
-            ].copy()
-        else:
-            today_data = hourly_agg_filtered[
-                (hourly_agg_filtered['hour_of_day'] <= current_hour) &
-                (hourly_agg_filtered[f'{metric}_today'] > 0)
-            ].copy()
-            last_week_data = hourly_agg_filtered[
-                hourly_agg_filtered[f'{metric}_last_week'] > 0
-            ].copy()
+        today_data = hourly_agg_filtered[
+            (hourly_agg_filtered['hour_of_day'] <= current_hour) &
+            (hourly_agg_filtered[f'{metric}_today'] > 0)
+        ].copy()
+        last_week_data = hourly_agg_filtered[
+            hourly_agg_filtered[f'{metric}_last_week'] > 0
+        ].copy()
         
         # Sort by the display hour column
         today_data = today_data.sort_values(hour_column)
@@ -691,7 +660,7 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True, ch
         # Add today's line (only up to current hour)
         if not today_data.empty:
             fig.add_trace(go.Scatter(
-                x=today_data[hour_column] if israel_time else today_data['hour_of_day'],
+                x=today_data['hour_of_day'],
                 y=today_data[f'{metric}_today'],
                 name='Today',
                 mode='lines+markers',
@@ -703,7 +672,7 @@ def plot_hourly_comparison(df, metric, title, y_axis_label, israel_time=True, ch
         # Add last week's line
         if not last_week_data.empty:
             fig.add_trace(go.Scatter(
-                x=last_week_data[hour_column] if israel_time else last_week_data['hour_of_day'],
+                x=last_week_data['hour_of_day'],
                 y=last_week_data[f'{metric}_last_week'],
                 name='Last Week',
                 mode='lines+markers',
@@ -1098,33 +1067,7 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
     
     # Sidebar filters
     with st.sidebar:
-        st.header("🔍 Additional Filters")
-        
-        # Aggregate brands option (if multiple brands were queried)
-        if len(all_brands) > 1:
-            aggregate_brands = st.checkbox(
-                "🔗 Combine all brands into one view",
-                value=False,
-                help="Aggregate all brands data together"
-            )
-        else:
-            aggregate_brands = False
-        
-        # Feature filter with multiselect
-        st.markdown("### 🎯 Features")
-        select_all_features = st.checkbox("Select All Features", value=True)
-        
-        if select_all_features:
-            selected_features = all_features
-        else:
-            selected_features = st.multiselect(
-                'Choose Features',
-                all_features,
-                default=[],
-                help="Select one or more features to filter"
-            )
-        
-        st.caption(f"Selected: {len(selected_features)} features")
+        st.header("🔍 View Options")
         
         # Timezone selection
         st.markdown("### 🕐 Time Zone")
@@ -1136,7 +1079,11 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
         
         # Add refresh button
         if st.button("🔄 Refresh Data", use_container_width=True):
+            # Clear both cache and session state
             st.cache_data.clear()
+            for key in ['df', 'hourly_df', 'is_real_data', 'new_devices_hourly']:
+                if key in st.session_state:
+                    del st.session_state[key]
             st.rerun()
         
         # Add some space
@@ -1148,27 +1095,14 @@ def render_dashboard(df, hourly_df, is_real_data, new_devices_hourly=None):
         st.caption(f"Brands: {len(df['brand'].unique())}")
         st.caption(f"Features: {len(df['feature'].unique())}")
     
-    # Apply filters to data
+    # Data is already filtered by the query
     filtered_df = df.copy()
     filtered_hourly_df = hourly_df.copy() if not hourly_df.empty else pd.DataFrame()
     
-    # Filter by selected features
-    if selected_features:
-        filtered_df = filtered_df[filtered_df['feature'].isin(selected_features)]
-        if not filtered_hourly_df.empty:
-            filtered_hourly_df = filtered_hourly_df[filtered_hourly_df['feature'].isin(selected_features)]
-    
-    # Show warning if no data after filtering
+    # Show warning if no data
     if filtered_df.empty:
-        st.warning("⚠️ No data matches the selected filters. Please adjust your selection.")
+        st.warning("⚠️ No data available for the selected filters.")
         return
-    
-    # Apply aggregation if requested
-    if aggregate_brands and len(all_brands) > 1:
-        st.info(f"📊 Showing combined view of {len(all_brands)} brands: {', '.join(all_brands[:3])}{'...' if len(all_brands) > 3 else ''}")
-        filtered_df = aggregate_brands_data(filtered_df, all_brands)
-        if not filtered_hourly_df.empty:
-            filtered_hourly_df = aggregate_hourly_data(filtered_hourly_df, all_brands)
     
     # Create tabs for different views
     tab1, tab2 = st.tabs(["📊 Overview", "📈 Hourly Trends"])
@@ -1196,8 +1130,8 @@ def main():
             selected_source = None if selected_source_display == "All" else selected_source_display
             
             st.markdown("### 🏷️ Brands Filter")
-            st.caption("Select brands before loading data for faster queries")
-            select_all_brands = st.checkbox("Select All Brands", value=True, key="select_all_main")
+            st.caption("Select brands to query")
+            select_all_brands = st.checkbox("Select All Brands", value=False, key="select_all_main")
             
             if select_all_brands:
                 selected_brands = BRANDS
@@ -1210,37 +1144,117 @@ def main():
                     key="brands_filter_main"
                 )
             
-            if not selected_brands:
-                st.warning("⚠️ Please select at least one brand")
+            st.markdown("### 🎯 Features Filter")
+            st.caption("Select features to query")
+            select_all_features_main = st.checkbox("Select All Features", value=True, key="select_all_features_main")
+            
+            if select_all_features_main:
+                selected_features = FEATURES
+            else:
+                selected_features = st.multiselect(
+                    'Choose Features',
+                    FEATURES,
+                    default=[],
+                    help="Select specific features to query",
+                    key="features_filter_main"
+                )
+            
+            # Check if both brands and features are selected
+            if not selected_brands or not selected_features:
+                if not selected_brands:
+                    st.info("👆 Please select at least one brand")
+                if not selected_features:
+                    st.info("👆 Please select at least one feature")
                 return
             
-            st.caption(f"Will query {len(selected_brands)} brand(s)")
+            # Combine brands option (if multiple brands selected)
+            combine_brands = False
+            if len(selected_brands) > 1:
+                combine_brands = st.checkbox(
+                    "🔗 Combine selected brands into one aggregated view",
+                    value=False,
+                    help="Query and aggregate all selected brands together (faster!)",
+                    key="combine_brands_main"
+                )
             
-            # Store in session state
-            st.session_state['selected_source'] = selected_source
-            st.session_state['selected_brands'] = selected_brands
+            st.markdown("---")
+            
+            # Show what will be queried
+            st.caption(f"📊 {len(selected_brands)} brand(s) × {len(selected_features)} feature(s)")
+            if combine_brands:
+                st.caption("🔗 Will combine brands into one view")
+            
+            # Load Data button
+            load_data = st.button(
+                "🚀 Load Data",
+                type="primary",
+                use_container_width=True,
+                help="Click to run the query with selected filters"
+            )
+            
+            if load_data:
+                # Store in session state
+                st.session_state['selected_source'] = selected_source
+                st.session_state['selected_brands'] = selected_brands
+                st.session_state['selected_features'] = selected_features
+                st.session_state['combine_brands'] = combine_brands
+                st.session_state['data_loaded'] = True
         
-        # Load the data with selected filters
-        with st.spinner(f'Loading data for {len(selected_brands)} brand(s)...'):
-            df, is_real_data = get_data(selected_source, selected_brands)
+        # Check if we should load data
+        if not st.session_state.get('data_loaded', False):
+            st.info("👆 Click 'Load Data' in the sidebar to run the query")
+            return
+        
+        # Get stored values from session state
+        selected_source = st.session_state.get('selected_source')
+        selected_brands = st.session_state.get('selected_brands')
+        selected_features = st.session_state.get('selected_features', FEATURES)
+        combine_brands = st.session_state.get('combine_brands', False)
+        
+        # Check if we already have data in session state
+        if 'df' in st.session_state and not st.session_state['df'].empty:
+            # Use cached data from session state
+            st.sidebar.success("✅ Using cached data")
+            df = st.session_state['df']
+            hourly_df = st.session_state.get('hourly_df', pd.DataFrame())
+            is_real_data = st.session_state.get('is_real_data', False)
+            new_devices_hourly = st.session_state.get('new_devices_hourly', None)
+        else:
+            # Load the data with selected filters (first time only)
+            st.sidebar.info("🔄 Loading fresh data...")
+            with st.spinner(f'Loading data for {len(selected_brands)} brand(s) × {len(selected_features)} feature(s)...'):
+                df, is_real_data = get_data(selected_source, selected_brands, selected_features)
+                
+                # Get hourly data for charts
+                hourly_df = pd.DataFrame()
+                new_devices_hourly = None
+                try:
+                    conn = get_connection()
+                    if conn:
+                        hourly_df = pd.read_sql(build_hourly_query(selected_source, selected_brands, selected_features), conn)
+                        
+                        # Get new_devices hourly separately (not grouped by feature)
+                        try:
+                            new_devices_hourly = pd.read_sql(build_new_devices_hourly_query(selected_source, selected_brands, selected_features), conn)
+                        except Exception as e:
+                            new_devices_hourly = None
+                        
+                        conn.close()
+                except Exception as e:
+                    st.sidebar.warning(f"⚠️ Could not load hourly data: {str(e)}")
             
-            # Get hourly data for charts
-            hourly_df = pd.DataFrame()
-            new_devices_hourly = None
-            try:
-                conn = get_connection()
-                if conn:
-                    hourly_df = pd.read_sql(build_hourly_query(selected_source, selected_brands), conn)
-                    
-                    # Get new_devices hourly separately (not grouped by feature)
-                    try:
-                        new_devices_hourly = pd.read_sql(build_new_devices_hourly_query(selected_source, selected_brands), conn)
-                    except Exception as e:
-                        new_devices_hourly = None
-                    
-                    conn.close()
-            except Exception as e:
-                st.sidebar.warning(f"⚠️ Could not load hourly data: {str(e)}")
+                # Apply aggregation if requested (before rendering)
+                if combine_brands and len(selected_brands) > 1 and not df.empty:
+                    st.info(f"📊 Showing combined view of {len(selected_brands)} brands: {', '.join(selected_brands[:3])}{'...' if len(selected_brands) > 3 else ''}")
+                    df = aggregate_brands_data(df, selected_brands)
+                    if not hourly_df.empty:
+                        hourly_df = aggregate_hourly_data(hourly_df, selected_brands)
+            
+                # Store data in session state
+                st.session_state['df'] = df
+                st.session_state['hourly_df'] = hourly_df
+                st.session_state['is_real_data'] = is_real_data
+                st.session_state['new_devices_hourly'] = new_devices_hourly
         
         # Render the dashboard
         if not df.empty:
